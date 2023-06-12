@@ -3,7 +3,47 @@ using System;
 namespace ChessGame
 {
     public static class CommonMethods{
-        public static bool _canWalk(ChessBoard board, Move move, int[] dx, int[] dy)
+        public static bool IsNeigbour(Move move)
+        {
+            var dx = new[] { -1, -1, -1, 0, 0, 1, 1, 1 };
+            var dy = new[] { -1, 0, 1, -1, 1, -1, 0, 1 };
+            bool can = false;
+            for (var i = 0; i < 8; i++)
+            {
+                var newRow = move.Source.Row + dx[i];
+                var newColumn = move.Source.Column + dy[i];
+                if (newRow != move.Destination.Row || newColumn != move.Destination.Column)
+                    continue;
+                can = true;
+                break;
+            }
+
+            return can;
+        }
+        public static bool IsSquareAttacked(ChessBoard board, Position squarePosition, bool whiteCanAttack)
+        {
+            for (var i = 0; i < 8; i++)
+            {
+                for (var j = 0; j < 8; j++)
+                {
+                    var currentPiece = board.GetPiece(new Position(i, j));
+                    if (currentPiece is Empty || currentPiece.White != whiteCanAttack)
+                        continue;
+                    if (currentPiece is King)
+                    {
+                        if (IsNeigbour(new Move(new Position(i, j), squarePosition)))
+                            return true;
+                    }
+                    else
+                    {
+                        if (currentPiece.CanMove(board, new Move(new Position(i, j), squarePosition)))
+                            return true;
+                    }
+                }
+            }
+            return false;
+        }
+        public static bool _canWalk(ChessBoard board, Move move, int[] dx, int[] dy, bool walkWithNocheck = false)
         {
             var index = -1;
             for (var i = 0; index == -1 && i < dx.Length; i++)
@@ -23,7 +63,13 @@ namespace ChessGame
                         var inPathPiece = board.GetPiece(new Position(newRow, newColumn));
                         if (inPathPiece is Empty)
                         {
-                            // ok cool 
+                            if (walkWithNocheck)
+                            {
+                               // check if there is any piece can attack this position 
+                               if (IsSquareAttacked(board, new Position(newRow, newColumn),
+                                       !board.GetPiece(move.Source).White))
+                                   return false;
+                            }
                         }
                         else
                         {
@@ -47,8 +93,9 @@ namespace ChessGame
     {
         public bool Killed { get; set; } = false;
         public bool White { get; set; } = false;
+        public bool FirstMove { get; set; } = true;
     
-        public bool CanMoveLogical(ChessBoard board, Move move)
+        public virtual bool CanMoveLogical(ChessBoard board, Move move)
         {
             var sourcePiece = board.GetPiece(move.Source);
             var destinationPiece = board.GetPiece(move.Destination);
@@ -72,65 +119,46 @@ namespace ChessGame
     }
     public class King : Piece 
     {
-        private bool castlingDone = false;
-
         public override string ToString()
         {
-            return "K";
+            return White? "K": "k";
         }
-
-        
+        public override bool CanMoveLogical(ChessBoard board, Move move)
+        {
+            // base CanMoveLogical will return false in case of castle because src, des are of same color  
+            var sourcePiece = board.GetPiece(move.Source);
+            return !(sourcePiece is Empty);
+        }
+        public bool IsCastleMove(ChessBoard board, Move move)
+        {
+            var source = board.GetPiece(move.Source);
+            var destination = board.GetPiece(move.Destination);
+            if (!(destination is Rook))
+                return false;
+            if (source.FirstMove == false || destination.FirstMove == false)
+                return false;
+            var dx = new[] {0, 0};
+            var dy = new[] {-1, 1};
+            return CommonMethods._canWalk(board, move, dx, dy, true);
+        }
         public override bool CanMove(ChessBoard board, Move move)
         {
-            var can = IsNeigbour(move);
+            if (IsCastleMove(board, move))
+                return true;
+            var can = CommonMethods.IsNeigbour(move);
             // king can't reach this square 
             if (!can) return false;
             
             // check if the destination square is attacked
             var myPiece = board.GetPiece(move.Source);
-            for (var i = 0; i < 8; i++)
-            {
-                for (var j = 0; j < 8; j++)
-                {
-                    var currentPiece = board.GetPiece(new Position(i, j));
-                    if (currentPiece is Empty || currentPiece.White == myPiece.White)
-                        continue;
-                    if (currentPiece is King)
-                    {
-                        if (IsNeigbour(new Move(new Position(i, j), move.Source)))
-                            return false;
-                    }
-                    if (currentPiece.CanMove(board, new Move(new Position(i, j), move.Source)))
-                        return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool IsNeigbour(Move move)
-        {
-            var dx = new[] { -1, -1, -1, 0, 0, 1, 1, 1 };
-            var dy = new[] { -1, 0, 1, -1, 1, -1, 0, 1 };
-            bool can = false;
-            for (var i = 0; i < 8; i++)
-            {
-                var newRow = move.Source.Row + dx[i];
-                var newColumn = move.Source.Column + dy[i];
-                if (newRow != move.Destination.Row || newColumn != move.Destination.Column)
-                    continue;
-                can = true;
-                break;
-            }
-
-            return can;
+            return !CommonMethods.IsSquareAttacked(board, move.Destination, myPiece.White);
         }
     }
     
     public class Queen : Piece {
         public override string ToString()
         {
-            return "Q";
+            return White? "Q": "q";
         }
 
         public override bool CanMove(ChessBoard board, Move move)
@@ -144,7 +172,7 @@ namespace ChessGame
     public class Knight : Piece {
         public override string ToString()
         {
-            return "N";
+            return White? "N": "n";
         }
 
         public override bool CanMove(ChessBoard board, Move move)
@@ -158,7 +186,7 @@ namespace ChessGame
     public class Bishop : Piece {
         public override string ToString()
         {
-            return "B";
+            return White? "B": "b";
         }
 
         public override bool CanMove(ChessBoard board, Move move)
@@ -172,7 +200,7 @@ namespace ChessGame
     public class Rook : Piece {
         public override string ToString()
         {
-            return "R";
+            return White? "R": "r";
         }
 
         public override bool CanMove(ChessBoard board, Move move)
@@ -187,7 +215,7 @@ namespace ChessGame
     {
         public override string ToString()
         {
-            return "P";
+            return White? "P": "p";
         }
 
         public override bool CanMove(ChessBoard board, Move move)
@@ -206,11 +234,12 @@ namespace ChessGame
                         continue;
                     valid = false;
                 }
-
                 if (!valid)
                 {
                     newRow += (myPiece.White ? -1 : 1);
                     if (move.Destination.Row != newRow || move.Destination.Column != newColumn)
+                        continue;
+                    if (myPiece.FirstMove == false)
                         continue;
                 }
                 if (i == 0)

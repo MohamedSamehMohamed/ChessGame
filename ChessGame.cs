@@ -44,8 +44,33 @@ namespace ChessGame
                 return false;
             if (!sourcePiece.CanMoveLogical(_board, move) || !sourcePiece.CanMove(_board, move))
                 return false;
-            _board.UpdateBoard(move.Source, new Empty());
-            _board.UpdateBoard(move.Destination, sourcePiece);
+            if (sourcePiece is King king && king.IsCastleMove(_board, move))
+            {
+                Position kingPlace, rookPlace;
+                var theRock = _board.GetPiece(move.Destination);
+                if (move.Source.Column < move.Destination.Column)
+                {
+                    kingPlace = new Position(move.Source.Row,move.Source.Column + 2);
+                    rookPlace = new Position(move.Source.Row, move.Source.Column + 1);
+                }
+                else
+                {
+                    kingPlace = new Position(move.Source.Row,move.Source.Column - 2);
+                    rookPlace = new Position(move.Source.Row, move.Source.Column - 1);
+                }
+                _board.UpdateBoard(kingPlace, sourcePiece);
+                _board.UpdateBoard(rookPlace, theRock);
+                _board.UpdateBoard(move.Source, new Empty());
+                _board.UpdateBoard(move.Destination, new Empty());
+                theRock.FirstMove = false;
+            }
+            else
+            {
+                _board.UpdateBoard(move.Source, new Empty());
+                _board.UpdateBoard(move.Destination, sourcePiece);
+                sourcePiece.FirstMove = false;
+            }
+
             _player1Turn ^= true;
             _moves.Add(move);
             _updateGameStatus();
@@ -62,7 +87,7 @@ namespace ChessGame
                 Console.WriteLine($"total number of moves made is:{_moves.Count}");
                 Console.WriteLine($"move made is {move}");
                 _board.PrintBoard();
-                Thread.Sleep(500);
+                Thread.Sleep(20);
             }
         }
 
@@ -87,10 +112,10 @@ namespace ChessGame
             }
 
             Random random = new Random();
+            myPiceces = myPiceces.OrderBy(o => random.Next()).ToList();
             targetPlaces = targetPlaces.OrderBy(o => random.Next()).ToList();
-            while (true)
+            for(var index = 0; index < myPiceces.Count; index++)
             {
-                var index = random.Next(myPiceces.Count - 1);
                 var from = new Position(myPiceces[index][0], myPiceces[index][1]);
                 var myPiece = _board.GetPiece(from);
                 for (var index2 = 0; index2 < targetPlaces.Count; index2++)
@@ -104,11 +129,27 @@ namespace ChessGame
                     return move;
                 }
             }
+
+            throw new Exception("Can't make a move");
         }
 
         private void _updateGameStatus()
         {
             // TODO 
+        }
+
+        public void Manuel()
+        {
+            while (_gameStatus == GameStatus.Active)
+            {
+                var str = Console.ReadLine().Split(' ');
+                var move = new Move(ConvertToPosition(str[0]), ConvertToPosition(str[1]));
+                Play(move);
+                Console.Clear();
+                Console.WriteLine($"total number of moves made is:{_moves.Count}");
+                Console.WriteLine($"move made is {move}");
+                _board.PrintBoard();
+            }
         }
     }
 }
