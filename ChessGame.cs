@@ -135,7 +135,48 @@ namespace ChessGame
 
         private void _updateGameStatus()
         {
-            // TODO 
+            var numberOfKings = 0;
+            var white = false;
+            for (var i = 0; i < 8; i++)
+            {
+                for (var j = 0; j < 8; j++)
+                {
+                    var piece = _board.GetPiece(new Position(i, j));
+                    if (piece is King)
+                    {
+                        numberOfKings++;
+                        white = piece.White;
+                    }else if (piece is Pawn && (i == 0 || i == 7))
+                    {
+                        var r = new Random();
+                        var c = r.Next(4);
+                        switch (c)
+                        {
+                            case 0:
+                                piece = new Bishop { White = piece.White };
+                                break;
+                            case 1:
+                                piece = new Knight { White = piece.White };
+                                break;
+                            case 2:
+                                piece = new Queen { White = piece.White };
+                                break;
+                            case 3:
+                                piece = new Rook { White = piece.White };
+                                break;
+                        }
+                        _board.UpdateBoard(new Position(i, j), piece);
+                    }
+                }
+            }
+
+            if (numberOfKings == 1)
+            {
+                _gameStatus = (white ? GameStatus.BlackWin : GameStatus.WhiteWin);
+                return;
+            }
+            
+            
         }
 
         public void Manuel()
