@@ -93,6 +93,30 @@ namespace ChessGame
     {
         public bool Killed { get; set; } = false;
         public bool White { get; set; } = false;
+
+        public int PieceValue
+        {
+            get
+            {
+                switch (this)
+                {
+                    case King _:
+                        return 100;
+                    case Queen _:
+                        return 8;
+                    case Rook _:
+                        return 5;
+                    case Knight _:
+                    case Bishop _:
+                        return 3;
+                    case Pawn _:
+                        return 1;
+                    default:
+                        return 0;
+                }
+            }
+        }
+
         public bool FirstMove { get; set; } = true;
     
         public virtual bool CanMoveLogical(ChessBoard board, Move move)
@@ -105,7 +129,6 @@ namespace ChessGame
         }
         public abstract bool CanMove(ChessBoard board, Move move);
     }
-    
     public class Empty : Piece
     {
         public override string ToString()

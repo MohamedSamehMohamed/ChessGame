@@ -14,6 +14,7 @@ namespace ChessGame
         private bool _player1Turn;
         private List<Move> _moves;
         private GameStatus _gameStatus;
+        private Random _random;
 
         public ChessGame()
         {
@@ -23,6 +24,7 @@ namespace ChessGame
             _moves = new List<Move>();
             _gameStatus = GameStatus.Active;
             _player1Turn = true;
+            _random = new Random();
         }
 
         public Position ConvertToPosition(string str)
@@ -81,18 +83,49 @@ namespace ChessGame
         {
             while (_gameStatus == GameStatus.Active)
             {
-                var move = _getRandomMove();
+                var move = _getGoodMove();
                 Play(move);
                 Console.Clear();
                 Console.WriteLine($"total number of moves made is:{_moves.Count}");
                 Console.WriteLine($"move made is {move}");
                 _board.PrintBoard();
-                Thread.Sleep(20);
+                Console.ReadLine();
             }
         }
 
         private Move _getRandomMove()
         {
+            var moves = _getValidMoves();
+            if (moves.Count == 0)
+                throw new Exception("No valid move exist");
+            var len = moves.Count;
+            return moves[_random.Next(len)];
+        }
+
+        private Move _getGoodMove()
+        {
+            var moves = _getValidMoves();
+            if (moves.Count == 0)
+                throw new Exception("No valid move exist");
+            var maxScore = -1;
+            var goodMove = moves[0];
+            foreach (var move in moves)
+            {
+                var currentScore = _getMoveScore(move);
+                if (currentScore <= maxScore) continue;
+                maxScore = currentScore;
+                goodMove = move;
+            }
+            return goodMove;
+        }
+
+        private int _getMoveScore(Move move)
+        {
+            return _board.GetPiece(move.Destination).PieceValue;
+        }
+        private List<Move> _getValidMoves()
+        {
+            List<Move> validMoves = new List<Move>();
             List<int[]> myPiceces = new List<int[]>();
             List<int[]> targetPlaces = new List<int[]>();
             for (var i = 0; i < 8; i++)
@@ -111,9 +144,8 @@ namespace ChessGame
                 }
             }
 
-            Random random = new Random();
-            myPiceces = myPiceces.OrderBy(o => random.Next()).ToList();
-            targetPlaces = targetPlaces.OrderBy(o => random.Next()).ToList();
+            myPiceces = myPiceces.OrderBy(o => _random.Next()).ToList();
+            targetPlaces = targetPlaces.OrderBy(o => _random.Next()).ToList();
             for(var index = 0; index < myPiceces.Count; index++)
             {
                 var from = new Position(myPiceces[index][0], myPiceces[index][1]);
@@ -126,11 +158,10 @@ namespace ChessGame
                     {
                         continue;
                     }
-                    return move;
+                    validMoves.Add(move);
                 }
             }
-
-            throw new Exception("Can't make a move");
+            return validMoves;
         }
 
         private void _updateGameStatus()
@@ -148,8 +179,7 @@ namespace ChessGame
                         white = piece.White;
                     }else if (piece is Pawn && (i == 0 || i == 7))
                     {
-                        var r = new Random();
-                        var c = r.Next(4);
+                        var c = _random.Next(4);
                         switch (c)
                         {
                             case 0:
@@ -175,8 +205,6 @@ namespace ChessGame
                 _gameStatus = (white ? GameStatus.BlackWin : GameStatus.WhiteWin);
                 return;
             }
-            
-            
         }
 
         public void Manuel()
