@@ -12,7 +12,7 @@ namespace ChessGame
         private Player _player1;
         private Player _player2;
         private bool _player1Turn;
-        private List<Move> _moves;
+        private Stack<Move> _moves;
         private GameStatus _gameStatus;
         private Random _random;
 
@@ -21,7 +21,7 @@ namespace ChessGame
             _board = new ChessBoard();
             _player1 = new Player();
             _player2 = new Player();
-            _moves = new List<Move>();
+            _moves = new Stack<Move>();
             _gameStatus = GameStatus.Active;
             _player1Turn = true;
             _random = new Random();
@@ -41,10 +41,10 @@ namespace ChessGame
         }
         public bool MakeAMove(Move move)
         {
+            if (move == null) return false;
             var sourcePiece = _board.GetPiece(move.Source);
-            if (sourcePiece.White != _player1Turn)
-                return false;
-            if (!sourcePiece.CanMoveLogical(_board, move) || !sourcePiece.CanMove(_board, move))
+            var myMoves = sourcePiece.GetMyMoves(_board, move.Source);
+            if (myMoves.Contains(move) == false)
                 return false;
             if (sourcePiece is King king && king.IsCastleMove(_board, move))
             {
@@ -65,31 +65,45 @@ namespace ChessGame
                 _board.UpdateBoard(move.Source, new Empty());
                 _board.UpdateBoard(move.Destination, new Empty());
                 theRock.FirstMove = false;
+                sourcePiece.FirstMove = false;
             }
             else
             {
+                move.CapturedPiece = _board.GetPiece(move.Destination);
+                move.IsSourceFirstMove = sourcePiece.FirstMove;
                 _board.UpdateBoard(move.Source, new Empty());
                 _board.UpdateBoard(move.Destination, sourcePiece);
                 sourcePiece.FirstMove = false;
             }
 
             _player1Turn ^= true;
-            _moves.Add(move);
+            _moves.Push(move);
             _updateGameStatus();
             return true;
         }
 
+        public void UnDoMove()
+        {
+            var move = _moves.Pop();
+            var source = _board.GetPiece(move.Destination);
+            source.FirstMove = move.IsSourceFirstMove;
+            _board.UpdateBoard(move.Source, source);
+            _board.UpdateBoard(move.Destination, move.CapturedPiece);
+            
+            _player1Turn ^= true;
+            _updateGameStatus();
+        }
         public void Simulate()
         {
             while (_gameStatus == GameStatus.Active)
             {
-                var move = _getGoodMove();
-                Play(move);
+                var move = _getAGoodSecondMove(2);
+                Play(move.Item1);
                 Console.Clear();
                 Console.WriteLine($"total number of moves made is:{_moves.Count}");
                 Console.WriteLine($"move made is {move}");
                 _board.PrintBoard();
-                Console.ReadLine();
+                Thread.Sleep(1000);
             }
         }
 
@@ -102,32 +116,94 @@ namespace ChessGame
             return moves[_random.Next(len)];
         }
 
-        private Move _getGoodMove()
+        public int GetAGoodMoveScore()
         {
             var moves = _getValidMoves();
             if (moves.Count == 0)
-                throw new Exception("No valid move exist");
-            var maxScore = -1;
-            var goodMove = moves[0];
+                return 0;
+            var maxScore = 0;
             foreach (var move in moves)
             {
-                var currentScore = _getMoveScore(move);
+                var currentScore = GetMoveScore(move);
                 if (currentScore <= maxScore) continue;
+                maxScore = currentScore;
+            }
+            return maxScore;
+        }
+        public (Move, int) _getAGoodSecondMove(int dep = 1)
+        {
+            var moves = _getValidMoves();
+            /*
+            Console.WriteLine($"{(_player1Turn? "white": "black")} turn dep {dep}");
+            foreach (var move in moves)
+            {
+                Console.WriteLine(move);
+            }
+            Console.WriteLine();
+            */
+            if (moves.Count == 0) return (null,0);
+            var maxScore = _player1Turn? (int)-1e9: (int)1e9;
+            Move goodMove = null;
+            foreach (var move in moves)
+            {
+                var currentScore = GetMoveScore(move) * (_player1Turn? 1: -1);
+                if (dep > 0)
+                {
+                    Play(move);
+                    var currentMove = _getAGoodSecondMove(dep - 1);
+                    var score = 0;
+                    if (currentMove.Item1 == null)
+                    {
+                        if (_player1Turn)
+                        {
+                            score = 200;
+                        }
+                        else
+                        {
+                            score = -200;
+                        }
+                    }
+                    else
+                    {
+                        score = currentMove.Item2;
+                        if (!_player1Turn)
+                            score *= -1;
+                    }
+                    currentScore -= score;
+                    UnDoMove();
+                }
+
+                var change = false;
+                if (_player1Turn)
+                {
+                    if (currentScore > maxScore)
+                        change = true;
+                }
+                else
+                {
+                    if (currentScore < maxScore)
+                        change = true;
+                }
+
+                if (!change) continue;
                 maxScore = currentScore;
                 goodMove = move;
             }
-            return goodMove;
-        }
 
-        private int _getMoveScore(Move move)
+            return (goodMove, maxScore);
+        }
+        public Move GetGoodMove()
+        {
+            var moves = _getValidMoves();
+            return moves.Count == 0 ? null : moves.OrderByDescending(GetMoveScore).FirstOrDefault();
+        }
+        public int GetMoveScore(Move move)
         {
             return _board.GetPiece(move.Destination).PieceValue;
         }
         private List<Move> _getValidMoves()
         {
-            List<Move> validMoves = new List<Move>();
-            List<int[]> myPiceces = new List<int[]>();
-            List<int[]> targetPlaces = new List<int[]>();
+            var validMoves = new List<Move>();
             for (var i = 0; i < 8; i++)
             {
                 for (var j = 0; j < 8; j++)
@@ -135,30 +211,9 @@ namespace ChessGame
                     var currentPiece = _board.GetPiece(new Position(i, j));
                     if (currentPiece is Empty || currentPiece.White != _player1Turn)
                     {
-                        targetPlaces.Add(new []{i, j});
-                    }
-                    else
-                    {
-                        myPiceces.Add(new []{i, j});
-                    }
-                }
-            }
-
-            myPiceces = myPiceces.OrderBy(o => _random.Next()).ToList();
-            targetPlaces = targetPlaces.OrderBy(o => _random.Next()).ToList();
-            for(var index = 0; index < myPiceces.Count; index++)
-            {
-                var from = new Position(myPiceces[index][0], myPiceces[index][1]);
-                var myPiece = _board.GetPiece(from);
-                for (var index2 = 0; index2 < targetPlaces.Count; index2++)
-                {
-                    var to = new Position(targetPlaces[index2][0], targetPlaces[index2][1]);
-                    var move = new Move(from, to);
-                    if (!myPiece.CanMoveLogical(_board, move) || !myPiece.CanMove(_board, move))
-                    {
                         continue;
                     }
-                    validMoves.Add(move);
+                    validMoves.AddRange(currentPiece.GetMyMoves(_board, new Position(i, j)));
                 }
             }
             return validMoves;
@@ -203,7 +258,6 @@ namespace ChessGame
             if (numberOfKings == 1)
             {
                 _gameStatus = (white ? GameStatus.BlackWin : GameStatus.WhiteWin);
-                return;
             }
         }
 
@@ -215,6 +269,34 @@ namespace ChessGame
                 var move = new Move(ConvertToPosition(str[0]), ConvertToPosition(str[1]));
                 Play(move);
                 Console.Clear();
+                Console.WriteLine($"total number of moves made is:{_moves.Count}");
+                Console.WriteLine($"move made is {move}");
+                _board.PrintBoard();
+            }
+        }
+        public void AgainstComputer()
+        {
+            while (_gameStatus == GameStatus.Active)
+            {
+                Move move;
+                if (_player1Turn)
+                {
+                    var str = Console.ReadLine().Split(' ');
+                    move = new Move(ConvertToPosition(str[0]), ConvertToPosition(str[1]));
+                }
+                else
+                {
+                    move = _getAGoodSecondMove(2).Item1;
+                    Console.WriteLine("To play");
+                    Console.WriteLine(move);
+                }
+
+                if (!MakeAMove(move))
+                {
+                    Console.WriteLine("Can't make the move");
+                    _gameStatus = _player1Turn ? GameStatus.BlackWin : GameStatus.WhiteWin;
+                }
+                // Console.Clear();
                 Console.WriteLine($"total number of moves made is:{_moves.Count}");
                 Console.WriteLine($"move made is {move}");
                 _board.PrintBoard();

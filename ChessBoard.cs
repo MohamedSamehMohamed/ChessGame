@@ -36,7 +36,11 @@ namespace ChessGame
             Piece = piece;
             Position = position;
         }
-        
+
+        public Box Clone()
+        {
+            return new Box(Piece.Clone(), Position);
+        }
     }
     public class ChessBoard
     {
@@ -113,6 +117,12 @@ namespace ChessGame
             }
         }
 
+        public void UpdateBoard(Move move)
+        {
+            boxes[move.Destination.Row][move.Destination.Column] = boxes[move.Source.Row][move.Source.Column];
+            boxes[move.Destination.Row][move.Destination.Column].Position = move.Destination;
+            boxes[move.Source.Row][move.Source.Column] = new Box();
+        }
         public void UpdateBoard(Position position, Piece piece)
         {
             boxes[position.Row][position.Column] = new Box(piece, position);
@@ -121,6 +131,19 @@ namespace ChessGame
         public Piece GetPiece(Position position)
         {
             return boxes[position.Row][position.Column].Piece;
+        }
+
+        public ChessBoard Clone()
+        {
+            ChessBoard newBoard = new ChessBoard();
+            for (var i = 0; i < 8; i++)
+            {
+                for (var j = 0; j < 8; j++)
+                {
+                    newBoard.boxes[i][j] = boxes[i][j].Clone();
+                }
+            }
+            return newBoard;
         }
     }
 }

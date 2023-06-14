@@ -15,7 +15,7 @@ namespace ChessGame
             else
             {
                 Console.Clear();
-                game.Manuel();
+                game.AgainstComputer();
             }
         }
     }
