@@ -13,7 +13,6 @@ namespace ChessGame
             {
                 var tempBoard = board.Clone();
                 tempBoard.UpdateBoard(move);
-                board.UpdateBoard(move);
                 if (IsSquareAttacked(tempBoard, kingPosition, !white))
                     return true;
             }
@@ -34,16 +33,15 @@ namespace ChessGame
                     while (true)
                     {
                         var targetPiece = board.GetPiece(toGo);
-                        if (targetPiece is Empty || targetPiece.White != me.White)
+                        if (targetPiece.White == me.White) break;
+                        var move = new Move(startPosition, toGo);
+                        if (!IsKingInCheck(board, move))
                         {
-                            var move = new Move(startPosition, toGo);
-                            if (!IsKingInCheck(board, move))
-                                myMoves.Add(move);
-                            toGo.Row += dx[i];
-                            toGo.Column += dy[i];
-                            if (targetPiece is Empty)
-                                continue;
+                            myMoves.Add(move);
                         }
+                        toGo = new Position(toGo.Row + dx[i], toGo.Column + dy[i]);
+                        if (targetPiece is Empty)
+                            continue;
                         break;
                     }
                 }
@@ -278,6 +276,7 @@ namespace ChessGame
             
             var dx = new[] { -1, -1, -1, 0, 0, 1, 1, 1 };
             var dy = new[] { -1, 0, 1, -1, 1, -1, 0, 1 };
+            var me = board.GetPiece(myPosition);
             for (var i = 0; i < dx.Length; i++)
             {
                 try
@@ -286,8 +285,11 @@ namespace ChessGame
                     var column = myPosition.Column + dy[i];
                     var toGo = new Position(row, column);
                     var move = new Move(myPosition, toGo);
+                    var desPiece = board.GetPiece(toGo);
+                    if (!(desPiece is Empty) && desPiece.White == me.White) 
+                        continue;
                     if (CanMove(board, move))
-                        myMoves.Add(move);
+                    myMoves.Add(move);
                 }
                 catch
                 {
@@ -492,8 +494,8 @@ namespace ChessGame
                                 myMoves.Add(move);
                             if (me.FirstMove)
                             {
-                                move.Destination.Row += (me.White ? -1 : 1);
-                                if (!CommonMethods.IsKingInCheck(board, move))
+                                move = new Move(myPosition, new Position(newRow + (me.White ? -1 : 1), newColumn));
+                                if (!CommonMethods.IsKingInCheck(board, move) && board.GetPiece(move.Destination) is Empty)
                                     myMoves.Add(move);
                             }
                         }

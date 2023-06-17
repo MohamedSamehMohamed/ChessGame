@@ -44,7 +44,17 @@ namespace ChessGame
             if (move == null) return false;
             var sourcePiece = _board.GetPiece(move.Source);
             var myMoves = sourcePiece.GetMyMoves(_board, move.Source);
-            if (myMoves.Contains(move) == false)
+            /*
+              Console.WriteLine($"you want to make this move {move}");
+             
+            Console.WriteLine("valid moves are :");
+            foreach (var m in myMoves)
+            {
+                Console.WriteLine(m);
+            }
+            Console.WriteLine("End of moves");
+            */
+            if (myMoves.Find(m => m.Source.Equals(move.Source) && m.Destination.Equals(move.Destination)) == null)
                 return false;
             if (sourcePiece is King king && king.IsCastleMove(_board, move))
             {
@@ -133,64 +143,54 @@ namespace ChessGame
         public (Move, int) _getAGoodSecondMove(int dep = 1)
         {
             var moves = _getValidMoves();
-            /*
-            Console.WriteLine($"{(_player1Turn? "white": "black")} turn dep {dep}");
+            if (moves.Count == 0) return (null, _player1Turn? (int)-1e9: (int)1e9);
+            var bestScore = _player1Turn? (int)-1e9: (int)1e9;
+            Move bestMove = null;
+            
             foreach (var move in moves)
             {
-                Console.WriteLine(move);
-            }
-            Console.WriteLine();
-            */
-            if (moves.Count == 0) return (null,0);
-            var maxScore = _player1Turn? (int)-1e9: (int)1e9;
-            Move goodMove = null;
-            foreach (var move in moves)
-            {
-                var currentScore = GetMoveScore(move) * (_player1Turn? 1: -1);
+                var currentScore = GetMoveScore(move);
+                if (_player1Turn == false) 
+                    currentScore *= -1;
+
                 if (dep > 0)
                 {
                     Play(move);
-                    var currentMove = _getAGoodSecondMove(dep - 1);
-                    var score = 0;
-                    if (currentMove.Item1 == null)
+                    var rec = _getAGoodSecondMove(dep - 1);
+                    UnDoMove();
+                    currentScore += rec.Item2;
+                }
+
+                {
+                    // compare current move with best move
+                    var change = false;
+                    if (_player1Turn)
                     {
-                        if (_player1Turn)
-                        {
-                            score = 200;
-                        }
-                        else
-                        {
-                            score = -200;
-                        }
+                        if (currentScore > bestScore)
+                            change = true;
                     }
                     else
                     {
-                        score = currentMove.Item2;
-                        if (!_player1Turn)
-                            score *= -1;
+                        if (currentScore < bestScore)
+                            change = true;
                     }
-                    currentScore -= score;
-                    UnDoMove();
-                }
 
-                var change = false;
-                if (_player1Turn)
-                {
-                    if (currentScore > maxScore)
-                        change = true;
-                }
-                else
-                {
-                    if (currentScore < maxScore)
-                        change = true;
-                }
+                    // for debugging  
+                    if (dep == 2)
+                    {
+                        Console.WriteLine(
+                            $"{(_player1Turn ? "white" : "black")} to play {dep} move {move} score {currentScore}");
+                    }
 
-                if (!change) continue;
-                maxScore = currentScore;
-                goodMove = move;
+                    if (change)
+                    {
+                        bestScore = currentScore;
+                        bestMove = move;
+                    }
+                }
             }
 
-            return (goodMove, maxScore);
+            return (bestMove, bestScore);
         }
         public Move GetGoodMove()
         {
@@ -286,9 +286,9 @@ namespace ChessGame
                 }
                 else
                 {
-                    move = _getAGoodSecondMove(2).Item1;
-                    Console.WriteLine("To play");
-                    Console.WriteLine(move);
+                    var ret = _getAGoodSecondMove(2);
+                    move = ret.Item1;
+                    Console.WriteLine($"To play {move} with score {ret.Item2}");
                 }
 
                 if (!MakeAMove(move))

@@ -20,6 +20,11 @@ namespace ChessGame
         {
             return $"{Convert.ToChar('a' + Column)}{8 - Row}";
         }
+
+        public bool Equals(Position other)
+        {
+            return Row == other.Row && Column == other.Column;
+        }
     }
     public class Box
     {
@@ -130,7 +135,7 @@ namespace ChessGame
 
         public Piece GetPiece(Position position)
         {
-            return boxes[position.Row][position.Column].Piece;
+                return boxes[position.Row][position.Column].Piece;
         }
 
         public ChessBoard Clone()
